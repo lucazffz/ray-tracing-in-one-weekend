@@ -222,7 +222,7 @@ main :: proc() {
 		max_depth         = 100,
 	}
 
-	handle, err := os.open("image.ppm", os.O_RDWR)
+	handle, err := os.open("build/output.ppm", os.O_RDWR)
 	if err != nil {
 		log.fatal("Could not open file: ", err)
 		return
