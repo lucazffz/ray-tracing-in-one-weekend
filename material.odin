@@ -1,6 +1,7 @@
 package main
 
 import linalg "core:math/linalg"
+import rand "core:math/rand"
 
 Material :: struct {
 	scatter: proc(m: ^Material, r: Ray, rec: HitRecord) -> (Ray, Color, bool),
@@ -15,6 +16,11 @@ Metal :: struct {
 	using mat:   Material,
 	albedo:      Color,
 	fuzz_factor: f32, // 0 <= fuzz_factor <= 1
+}
+
+Dielectric :: struct {
+	using mat:        Material,
+	refraction_index: f32, // index of refraction
 }
 
 metal_scatter :: proc(
@@ -62,8 +68,54 @@ lambertian_scatter :: proc(
 		dir    = scatter_dir,
 	}
 
-
 	attenuation = lambertian_mat.albedo
 	scattered = true
 	return
+}
+
+dielectric_scatter :: proc(
+	m: ^Material,
+	r: Ray,
+	rec: HitRecord,
+) -> (
+	scattered_ray: Ray,
+	attenuation: Color,
+	scattered: bool,
+) {
+	mat := cast(^Dielectric)m
+
+	attenuation = Color{1, 1, 1}
+	ref_idx: f32 = 1.0 / mat.refraction_index if rec.front_face else mat.refraction_index
+
+	unit_dir := linalg.normalize(r.dir)
+
+	// total internal reflection might occur at certain angles 
+	// (refracted sin_theta is greater than 1) meaning no refraction will happen
+
+	// NOTE: normal and unit_dir are normalized so dont need to divide by length
+	cos_theta := linalg.min(linalg.dot(-unit_dir, rec.normal), 1.0) // dot product def
+	sin_theta := linalg.sqrt(1.0 - cos_theta * cos_theta) // trig identity
+
+	dir: Vector3
+	cannot_refract := ref_idx * sin_theta > 1.0
+	// glass has reflectivity that depends on the angle of incidence
+	should_reflect := reflectance(cos_theta, ref_idx) > rand.float32()
+
+	if cannot_refract || should_reflect do dir = linalg.reflect(unit_dir, rec.normal)
+	else do dir = linalg.refract(unit_dir, rec.normal, ref_idx)
+
+	scattered_ray = Ray {
+		dir    = dir,
+		origin = rec.p,
+	}
+
+	scattered = true
+	return
+
+	reflectance :: proc(cosine: f32, ref_idx: f32) -> f32 {
+		// Use Schlick's approximation for reflectance.
+		r0 := (1.0 - ref_idx) / (1.0 + ref_idx)
+		r0 = r0 * r0
+		return r0 + (1.0 - r0) * linalg.pow(1.0 - cosine, 5)
+	}
 }

@@ -110,7 +110,8 @@ camera_render :: proc(c: ^Camera, world: []^Hittable, image: ImageBuffer) {
 		// be slightly inside the sphere causing the ray to hit the sphere again, 
 		// therefore offset the intersection interval slightly
 		if rec, hit := hit(world, r, Interval{0.001, INFINITY}); hit {
-			if scattered_ray, attenuation, scattered := rec.mat->scatter(r, rec); scattered {
+			if scattered_ray, attenuation, was_scattered := rec.mat->scatter(r, rec);
+			   was_scattered {
 				return attenuation * color_ray(scattered_ray, depth - 1, world)
 
 			} else do return Color{}

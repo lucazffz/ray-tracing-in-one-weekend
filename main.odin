@@ -22,10 +22,21 @@ HitRecord :: struct {
 }
 
 hit_record_set_face_normal :: proc(rec: ^HitRecord, r: Ray, outward_normal: Vector3) {
+	// make so that the normal always points against the ray
 	// sets the record normal vector
 	// NOTE: the parameter `outward_normal` is assumed to be unit length
-	front_face := linalg.dot(r.dir, outward_normal) < 0
-	normal := front_face ? outward_normal : -outward_normal
+	front_face: bool
+	normal: Vector3
+	if linalg.dot(r.dir, outward_normal) > 0 {
+		// ray is inside the sphere
+		normal = -outward_normal
+		front_face = false
+	} else {
+		// ray is outside the sphere
+		normal = outward_normal
+		front_face = true
+	}
+
 	rec.front_face = front_face
 	rec.normal = normal
 }
@@ -174,15 +185,18 @@ main :: proc() {
 		mat = Material{scatter = lambertian_scatter},
 		albedo = Color{0.1, 0.2, 0.5},
 	}
-	material_left := Metal {
-		mat = Material{scatter = metal_scatter},
-		albedo = Color{0.8, 0.8, 0.8},
-		fuzz_factor = 0.3,
+	material_left := Dielectric {
+		mat = Material{scatter = dielectric_scatter},
+		refraction_index = 1.5,
 	}
 	material_right := Metal {
 		mat = Material{scatter = metal_scatter},
 		albedo = Color{0.8, 0.6, 0.2},
 		fuzz_factor = 1,
+	}
+	material_bubble := Dielectric {
+		mat = Material{scatter = dielectric_scatter},
+		refraction_index = 1.0 / 1.5,
 	}
 
 
@@ -210,6 +224,12 @@ main :: proc() {
 			center = Point3{1, 0, -1},
 			radius = 0.5,
 			mat = &material_right,
+		},
+		&Sphere {
+			hittable = Hittable{sphere_hit},
+			center = Point3{-1, 0, -1},
+			radius = 0.4,
+			mat = &material_bubble,
 		},
 	}
 
@@ -246,7 +266,6 @@ main :: proc() {
 		for j in 0 ..< image_height {
 			for i in 0 ..< image_width {
 				color := buffer[i + j * image_width]
-				// apply a linear to gamma transform for gamma 2
 				color = color_linear_to_gamma(color)
 				// ensure color is in valid range between 0 and 255
 				intensity := Interval{0, 0.999}
@@ -262,6 +281,7 @@ main :: proc() {
 	}
 
 	color_linear_to_gamma :: proc(color: Color) -> Color {
+		// apply a linear to gamma transform for gamma 2
 		color := color
 		if color.r < 0 do color.r = 0
 		if color.g < 0 do color.g = 0
