@@ -196,7 +196,7 @@ main :: proc() {
 	}
 	material_bubble := Dielectric {
 		mat = Material{scatter = dielectric_scatter},
-		refraction_index = 1.0 / 1.5,
+		refraction_index = 1.5,
 	}
 
 
