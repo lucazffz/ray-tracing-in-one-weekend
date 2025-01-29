@@ -235,12 +235,15 @@ main :: proc() {
 
 	cam := Camera {
 		origin            = Point3{0, 0, 0},
-		image_width       = 400,
+		image_width       = 900,
 		aspect_ratio      = 16.0 / 9.0,
 		focal_length      = 1.0,
 		samples_per_pixel = 100,
 		max_depth         = 100,
 	}
+
+
+	context.logger = log.create_console_logger()
 
 	handle, err := os.open("build/output.ppm", os.O_RDWR)
 	if err != nil {

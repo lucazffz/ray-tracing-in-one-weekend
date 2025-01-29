@@ -5,6 +5,9 @@ import "core:log"
 import linalg "core:math/linalg"
 import rand "core:math/rand"
 import "core:os"
+import "core:sync"
+import "core:thread"
+import "core:time"
 
 // need to be dynamically allocated since image dimensions are not 
 // known at compile time, easiest way to do that is to 
@@ -79,29 +82,48 @@ image_info_create :: proc(c: ^Camera) -> ImageInfo {
 	}
 }
 
+mutex := sync.Mutex{}
 
 camera_render :: proc(c: ^Camera, world: []^Hittable, image: ImageBuffer) {
-	image_width := camera_image_width(c)
 	image_height := camera_image_height(c)
-	info := image_info_create(c)
 
-	for j := 0; j < image_height; j += 1 {
-		fmt.printf("\rScanlines remaining: %d   ", image_height - j)
-		os.flush(os.stdout)
-		for i := 0; i < image_width; i += 1 {
-			pixel_color := Color{}
-			for sample in 0 ..< c.samples_per_pixel {
-				r := get_ray(c, i, j)
-				pixel_color += color_ray(r, c.max_depth, world)
+	// create a thread for each scanline of the image to render
+	// in parallell
+	time_start := time.now()
+	threads := make([]^thread.Thread, image_height)
+	for scanline in 0 ..< image_height {
+		th := thread.create_and_start_with_poly_data4(
+		scanline,
+		c,
+		world,
+		image,
+		proc(line: int, c: ^Camera, world: []^Hittable, image: ImageBuffer) {
+			image_width := camera_image_width(c)
+			for i in 0 ..< image_width {
+				pixel_color := Color{}
+				for sample in 0 ..< c.samples_per_pixel {
+					r := get_ray(c, i, line)
+					pixel_color += color_ray(r, c.max_depth, world)
+				}
+				pixel_color /= f32(c.samples_per_pixel)
+				// dont need to lock since each thread is writing to a 
+				// different line of the image
+				image[i + line * image_width] = pixel_color
 			}
+		},
+		)
 
-			pixel_color /= f32(c.samples_per_pixel)
-			image[i + j * image_width] = pixel_color
-		}
-
+		threads[scanline] = th
 	}
 
-	fmt.print("\rDone                     \n")
+	// wait for all threads to finish and clean up
+	for th in threads {
+		thread.join(th)
+		thread.destroy(th)
+	}
+	delete(threads)
+	time_end := time.since(time_start)
+	log.info("Render time: ", time_end)
 
 	color_ray :: proc(r: Ray, depth: int, world: []^Hittable) -> Color {
 		if depth <= 0 do return Color{}
