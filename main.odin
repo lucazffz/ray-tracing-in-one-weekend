@@ -75,7 +75,7 @@ interval_contains :: proc(i: Interval, x: f32) -> bool {
 }
 
 interval_surrounds :: proc(i: Interval, x: f32) -> bool {
-	return i.min <= x && x < i.max
+	return i.min < x && x < i.max
 }
 
 interval_clamp :: proc(i: Interval, x: f32) -> f32 {
